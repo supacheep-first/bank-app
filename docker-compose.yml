@@ -20,5 +20,28 @@ services:
       interval: 30s
       retries: 3
 
+  backend:
+    build: ./backend
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      JWT_SECRET: ${JWT_SECRET:?}
+      # empty = default in Go
+      PIN_MAX_ATTEMPTS: ${PIN_MAX_ATTEMPTS:-}
+      PIN_LOCK_SECONDS: ${PIN_LOCK_SECONDS:-}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports: ["8080:80"]
+    depends_on: [backend]
+
 volumes:
   db-data:
