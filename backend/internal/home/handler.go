@@ -41,3 +41,23 @@ func (h Handler) Accounts(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.WriteJSON(w, http.StatusOK, accounts)
 }
+
+// Recent: GET /api/transactions/recent -> 200 [transaction...] newest ten by transaction_id (always an array) | 401 UNAUTHENTICATED
+func (h Handler) Recent(w http.ResponseWriter, r *http.Request) {
+	txns, err := recentByUser(r.Context(), h.DB, auth.UserID(r.Context()))
+	if err != nil {
+		httpx.WriteInternal(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, txns)
+}
+
+// Banners: GET /api/banners -> 200 [banner...] ordered by banner_id (always an array) | 401 UNAUTHENTICATED
+func (h Handler) Banners(w http.ResponseWriter, r *http.Request) {
+	banners, err := bannersByUser(r.Context(), h.DB, auth.UserID(r.Context()))
+	if err != nil {
+		httpx.WriteInternal(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, banners)
+}

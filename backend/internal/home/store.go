@@ -69,3 +69,64 @@ func accountsByUser(ctx context.Context, db *sql.DB, userID string) ([]accountRo
 	}
 	return out, rows.Err()
 }
+
+// transaction is one /api/transactions/recent element. The columns are
+// nullable; a nil pointer is omitted from the JSON (*bool: false is still sent).
+type transaction struct {
+	Name   *string `json:"name,omitempty"`
+	Image  *string `json:"image,omitempty"`
+	IsBank *bool   `json:"isBank,omitempty"`
+}
+
+// recentByUser: the newest ten by transaction_id (the table has no time column).
+// idx_transactions_user_id carries the PK, so DESC is read straight off the index.
+func recentByUser(ctx context.Context, db *sql.DB, userID string) ([]transaction, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT name, image, isBank FROM transactions
+		 WHERE user_id = ?
+		 ORDER BY transaction_id DESC
+		 LIMIT 10`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []transaction{} // non-nil: no transactions is [] not null
+	for rows.Next() {
+		var t transaction
+		if err := rows.Scan(&t.Name, &t.Image, &t.IsBank); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// banner is one /api/banners element; a nil pointer is omitted from the JSON.
+type banner struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Image       *string `json:"image,omitempty"`
+}
+
+// bannersByUser: every banner of the user, ordered so the response is stable.
+func bannersByUser(ctx context.Context, db *sql.DB, userID string) ([]banner, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT title, description, image FROM banners
+		 WHERE user_id = ?
+		 ORDER BY banner_id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []banner{} // non-nil: no banners is [] not null
+	for rows.Next() {
+		var b banner
+		if err := rows.Scan(&b.Title, &b.Description, &b.Image); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}

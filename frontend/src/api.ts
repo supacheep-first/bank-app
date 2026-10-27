@@ -14,6 +14,18 @@ export interface Account {
   flags?: string[]
 }
 
+export interface RecentItem {
+  name: string
+  image: string
+  isBank: boolean
+}
+
+export interface BannerItem {
+  title: string
+  description: string
+  image: string
+}
+
 export const api = createApi({
   baseQuery: fetchBaseQuery({ baseUrl: '/api', timeout: 10_000 }),
   endpoints: (build) => ({
@@ -25,6 +37,8 @@ export const api = createApi({
     // maybe after a 401) starts empty and shows the loader instead of the old result.
     getUser: build.query<{ name?: string; greetingMessage?: string }, void>({ query: () => '/user', keepUnusedDataFor: 0 }),
     getAccounts: build.query<Account[], void>({ query: () => '/accounts', keepUnusedDataFor: 0 }),
+    getRecent: build.query<RecentItem[], void>({ query: () => '/transactions/recent', keepUnusedDataFor: 0 }),
+    getBanners: build.query<BannerItem[], void>({ query: () => '/banners', keepUnusedDataFor: 0 }),
     // 204 → data is null; the session cookie is httpOnly, JS never sees it
     submitPin: build.mutation<null, { userId: string; pin: string }>({
       query: (body) => ({ url: '/auth/pin', method: 'POST', body }),
@@ -37,5 +51,7 @@ export const {
   useLazyGetProfileQuery,
   useGetUserQuery,
   useGetAccountsQuery,
+  useGetRecentQuery,
+  useGetBannersQuery,
   useSubmitPinMutation,
 } = api

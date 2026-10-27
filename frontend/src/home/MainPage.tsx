@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
-import { useGetAccountsQuery, useGetUserQuery } from '../api'
+import { useGetAccountsQuery, useGetBannersQuery, useGetRecentQuery, useGetUserQuery } from '../api'
 import Loader from '../common/Loader'
 import AccountCard from './AccountCard'
+import Banner from './Banner'
 import Header from './Header'
 import MainAccountCard from './MainAccountCard'
+import RecentList from './RecentList'
 
 // Main endpoints take no userId, so every user shares one cache key: always refetch on mount (DECISIONS 20)
 const FRESH = { refetchOnMountOrArgChange: true }
@@ -16,8 +18,10 @@ const unauthorized = ({ isError, error }: { isError: boolean; error?: object }) 
 export default function MainPage() {
   const user = useGetUserQuery(undefined, FRESH)
   const accounts = useGetAccountsQuery(undefined, FRESH)
-  // cards 07–08: give the endpoint keepUnusedDataFor: 0 in api.ts, call its query with FRESH and add it to this list
-  const queries = [user, accounts]
+  const recent = useGetRecentQuery(undefined, FRESH)
+  const banners = useGetBannersQuery(undefined, FRESH)
+  // card 08: give the endpoint keepUnusedDataFor: 0 in api.ts, call its query with FRESH and add it to this list
+  const queries = [user, accounts, recent, banners]
   // index (in the accounts array) of the card whose ⋮ menu is open: one state = one menu at a time.
   // Not accountNumber: the mock repeats a number within one user's accounts.
   const [menu, setMenu] = useState<number>()
@@ -49,8 +53,15 @@ export default function MainPage() {
             <h1 className="main-top__tit main-loading main-loading--order1">{user.data?.greetingMessage}</h1>
           </div>
           {mainIndex >= 0 && <MainAccountCard account={accounts.data![mainIndex]} {...menuState(mainIndex)} />}
+          {recent.data && <RecentList items={recent.data} />}
           {/* order: main account (order3) · recent (order5) · debit cards (order6) · other accounts · banner · Total Balance */}
           {accounts.data?.map((a, i) => !a.isMainAccount && <AccountCard key={i} account={a} {...menuState(i)} />)}
+          {banners.data?.map((b, i) => <Banner key={i} {...b} />)}
+          <div className="main-tb">
+            <button type="button" className="link-to">
+              Total Balance
+            </button>
+          </div>
         </div>
       </main>
     </div>
