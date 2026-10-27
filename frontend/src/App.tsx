@@ -8,6 +8,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<SplashPage />} />
         <Route path="/pin" element={<PinPage />} />
+        {/* blank until the Main page (card 05) */}
+        <Route path="/main" />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

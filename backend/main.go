@@ -34,9 +34,10 @@ func main() {
 		fatal("ping db", err)
 	}
 
-	authH := auth.Handler{DB: db}
+	authH := auth.Handler{DB: db, Cfg: cfg}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/auth/profile", authH.Profile)
+	mux.HandleFunc("POST /api/auth/pin", authH.SubmitPIN)
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),

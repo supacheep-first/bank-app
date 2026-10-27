@@ -6,7 +6,11 @@ export const api = createApi({
     getProfile: build.query<{ name: string }, string>({
       query: (userId) => ({ url: '/auth/profile', params: { userId } }),
     }),
+    // 204 → data is null; the session cookie is httpOnly, JS never sees it
+    submitPin: build.mutation<null, { userId: string; pin: string }>({
+      query: (body) => ({ url: '/auth/pin', method: 'POST', body }),
+    }),
   }),
 })
 
-export const { useGetProfileQuery } = api
+export const { useGetProfileQuery, useSubmitPinMutation } = api
