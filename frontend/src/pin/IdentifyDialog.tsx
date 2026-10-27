@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useLazyGetProfileQuery } from '../api'
+import { ERROR_MESSAGE, useLazyGetProfileQuery } from '../api'
 import { useAppDispatch, useAppSelector } from '../hooks'
 import { identified } from '../identity'
 import './IdentifyDialog.css'
@@ -13,10 +13,11 @@ interface IdentifyDialogProps {
 export default function IdentifyDialog({ onClose, onIdentified }: IdentifyDialogProps) {
   const dispatch = useAppDispatch()
   const { userId, userNotFound } = useAppSelector((state) => state.identity)
-  const [getProfile] = useLazyGetProfileQuery()
+  const [getProfile, { isFetching }] = useLazyGetProfileQuery()
   const ref = useRef<HTMLDialogElement>(null)
   const [value, setValue] = useState(userId ?? 'clare')
-  const [notFound, setNotFound] = useState(userNotFound)
+  // one slot: "User not found." for a 404, ERROR_MESSAGE for any other failure (not a 404 text: it would say this id does not exist)
+  const [error, setError] = useState(userNotFound ? 'User not found.' : undefined)
   const closable = !!userId
 
   useEffect(() => ref.current!.showModal(), [])
@@ -28,8 +29,8 @@ export default function IdentifyDialog({ onClose, onIdentified }: IdentifyDialog
       dispatch(identified(value))
       onIdentified()
     } else {
-      // 500 / timeout show nothing yet (DECISIONS 24)
-      setNotFound(!!result.error && 'status' in result.error && result.error.status === 404)
+      const notFound = !!result.error && 'status' in result.error && result.error.status === 404
+      setError(notFound ? 'User not found.' : ERROR_MESSAGE)
     }
   }
 
@@ -56,16 +57,17 @@ export default function IdentifyDialog({ onClose, onIdentified }: IdentifyDialog
           className="identify__input"
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          disabled={isFetching}
           autoComplete="off"
           autoCapitalize="off"
           spellCheck={false}
         />
-        {notFound && (
+        {error && (
           <p className="identify__error" role="alert">
-            User not found.
+            {error}
           </p>
         )}
-        <button type="submit" className="identify__confirm">
+        <button type="submit" className="identify__confirm" disabled={isFetching}>
           Confirm
         </button>
       </form>

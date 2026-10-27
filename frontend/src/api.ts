@@ -36,6 +36,10 @@ export interface DebitCard {
   number?: string
 }
 
+// The one text for every failure without its own answer: 500 · FETCH_ERROR · TIMEOUT_ERROR · PARSING_ERROR · 400 (DECISIONS 24).
+// Never error.message from Go.
+export const ERROR_MESSAGE = 'Something went wrong. Please try again.'
+
 export const api = createApi({
   baseQuery: fetchBaseQuery({ baseUrl: '/api', timeout: 10_000 }),
   endpoints: (build) => ({

@@ -1,0 +1,17 @@
+.load-error__text {
+	padding: 0 24px;
+	font-size: 1.6rem;
+	line-height: 2.2rem;
+	text-align: center;
+}
+
+.load-error__retry {
+	min-width: 160px;
+	height: 44px;
+	margin-top: 20px;
+	padding: 0 24px;
+	border-radius: 10px;
+	background: #24c875;
+	font-size: 1.6rem;
+	color: #fff;
+}

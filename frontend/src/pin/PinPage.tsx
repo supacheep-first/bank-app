@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { useSubmitPinMutation } from '../api'
-import { useAppSelector, useProfile } from '../hooks'
+import { ERROR_MESSAGE, useSubmitPinMutation } from '../api'
+import { useAppDispatch, useAppSelector, useProfile } from '../hooks'
+import { forgotten } from '../identity'
 import IdentifyDialog from './IdentifyDialog'
 import Keypad from './Keypad'
 import PinDots, { PIN_LENGTH } from './PinDots'
@@ -13,17 +14,20 @@ interface PinErrorData {
 
 export default function PinPage() {
   const navigate = useNavigate()
-  const { name } = useProfile()
+  const dispatch = useAppDispatch()
+  const { name, failed: profileFailed } = useProfile()
   const userId = useAppSelector((state) => state.identity.userId)
   const [submitPin, { isLoading }] = useSubmitPinMutation()
   const [pin, setPin] = useState('')
   const [attemptsLeft, setAttemptsLeft] = useState<number>()
   const [secondsLeft, setSecondsLeft] = useState(0)
+  // undefined until the first submit, so the profile's own error shows; after that only a failed submit does
+  const [pinFailed, setPinFailed] = useState<boolean>()
   const [linkOpen, setLinkOpen] = useState(false)
   const dialogOpen = !userId || linkOpen
   const locked = secondsLeft > 0
   const disabled = isLoading || locked
-  const showMessage = locked || attemptsLeft !== undefined
+  const showMessage = locked || attemptsLeft !== undefined || (pinFailed ?? profileFailed)
 
   // decrements per timeout, so it can run late (e.g. a background tab); the server stays the judge
   useEffect(() => {
@@ -34,16 +38,19 @@ export default function PinPage() {
 
   async function submit(id: string, code: string) {
     setAttemptsLeft(undefined) // the 401 text stays until this next submit
+    setPinFailed(false) // so does the general error text, profile's included
     const { error } = await submitPin({ userId: id, pin: code })
     if (!error) {
       navigate('/main', { replace: true })
       return
     }
     setPin('')
-    if (!('status' in error)) return
-    const body = (error.data as PinErrorData | undefined)?.error
-    if (error.status === 401) setAttemptsLeft(body?.attemptsLeft)
-    if (error.status === 429) setSecondsLeft(body?.retryAfterSec ?? 0)
+    const status = 'status' in error ? error.status : undefined
+    const body = 'data' in error ? (error.data as PinErrorData | undefined)?.error : undefined
+    if (status === 401) setAttemptsLeft(body?.attemptsLeft)
+    else if (status === 429) setSecondsLeft(body?.retryAfterSec ?? 0)
+    else if (status === 404) dispatch(forgotten()) // same as a profile 404: the non-closable dialog opens
+    else setPinFailed(true) // 500 · network · timeout · 400; no auto-resend, a timeout may already have counted
   }
 
   function press(digit: string) {
@@ -63,6 +70,7 @@ export default function PinPage() {
     setPin('')
     setAttemptsLeft(undefined)
     setSecondsLeft(0)
+    setPinFailed(false)
   }
 
   useEffect(() => {
@@ -89,11 +97,13 @@ export default function PinPage() {
               <p className="pin__dsc">
                 {locked ? (
                   `Too many attempts. Try again in ${secondsLeft} second${secondsLeft === 1 ? '' : 's'}.`
-                ) : (
+                ) : attemptsLeft !== undefined ? (
                   <>
                     Invalid PIN Code. <br />
                     {`You have ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} left.`}
                   </>
+                ) : (
+                  ERROR_MESSAGE
                 )}
               </p>
             )}

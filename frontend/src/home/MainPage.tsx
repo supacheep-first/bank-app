@@ -12,6 +12,7 @@ import AccountCard from './AccountCard'
 import Banner from './Banner'
 import DebitCardList from './DebitCardList'
 import Header from './Header'
+import LoadError from './LoadError'
 import MainAccountCard from './MainAccountCard'
 import RecentList from './RecentList'
 
@@ -43,7 +44,12 @@ export default function MainPage() {
   }, [])
 
   if (queries.some(unauthorized)) return <Navigate to="/pin" replace />
+  // wait for every query so a 401 still arrives before the error box (DECISIONS 24)
   if (queries.some((q) => q.isFetching)) return <Loader />
+  // whole-page box, never a page with parts missing; Try again refetches only the ones that failed
+  if (queries.some((q) => q.isError)) {
+    return <LoadError onRetry={() => queries.filter((q) => q.isError).forEach((q) => q.refetch())} />
+  }
 
   const menuState = (i: number) => ({
     open: menu === i,

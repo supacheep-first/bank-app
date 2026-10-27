@@ -12,10 +12,11 @@ export const useAppSelector = useSelector.withTypes<RootState>()
 export function useProfile() {
   const dispatch = useAppDispatch()
   const userId = useAppSelector((state) => state.identity.userId)
-  const { data, error, isLoading } = useGetProfileQuery(userId ?? skipToken)
+  const { data, error, isError, isLoading } = useGetProfileQuery(userId ?? skipToken)
   const notFound = !!error && 'status' in error && error.status === 404
   useEffect(() => {
     if (notFound) dispatch(forgotten())
   }, [notFound, dispatch])
-  return { name: data?.name, isLoading }
+  // failed = broke without a name to show (a later failed dialog try keeps the old name and is not this page's problem)
+  return { name: data?.name, isLoading, failed: isError && !notFound && !data }
 }
