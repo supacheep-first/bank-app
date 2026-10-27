@@ -2,7 +2,7 @@
 
 A take-home full-stack assignment: three pages of a mobile banking app (Splash, PIN, Main), run with one `docker compose` command.
 
-The frontend is React 19 with TypeScript and Redux Toolkit, built with a hand-written webpack config and served by nginx. The backend is Go on the standard library `net/http` router, with three packages: the MySQL driver, bcrypt and JWT. The database is MySQL 8.4 with the provided schema and mock data (1 million users), plus one demo user and two small tables added for this project.
+The frontend is React 19 with TypeScript and Redux Toolkit, built with a hand-written webpack config and served by nginx. The backend is Go on the standard library `net/http` router, with three packages: the MySQL driver, bcrypt and JWT. The database is MySQL 8.4 with the provided schema and mock data (1 million users), plus one demo user, two small tables and a marker table added for this project.
 
 | Assignment item | Status | Section |
 |---|---|---|
@@ -27,7 +27,7 @@ Demo user `clare`, mobile screen size.
 
 ## Quick start
 
-Prerequisites: Docker with Compose v2, and about 8 GB of free disk (mock SQL 2.9 GB, MySQL data 3.9 GB, plus images).
+Prerequisites: Docker Engine 25 or newer with Compose v2 (the db healthcheck uses `start_interval`), and about 8 GB of free disk (mock SQL 2.9 GB, MySQL data 3.9 GB, plus images).
 
 Copy `mock.zip` into the repository root, then:
 
@@ -79,6 +79,7 @@ Only port 8080 is published to the host. Go and MySQL are reachable only inside 
 │   ├── internal/home/        the 5 Main page endpoints, flag filter, card number masking
 │   └── Dockerfile            golang:1.26 build, distroless runtime
 ├── frontend/                 React app
+│   ├── public/index.html     HTML shell for the webpack build
 │   ├── src/                  entry, routes, Redux store, API client
 │   ├── src/splash/           Splash page
 │   ├── src/pin/              PIN page, keypad, Login with ID dialog
@@ -88,6 +89,7 @@ Only port 8080 is published to the host. Go and MySQL are reachable only inside 
 │   ├── webpack.config.js     production build and dev server
 │   ├── nginx.conf            static files, /api/ proxy, fallback to index.html
 │   └── Dockerfile            node:24-alpine build, nginx:1.30-alpine runtime
+├── docs/screenshots/         the three screenshots above
 ├── db/
 │   ├── init/                 runs once on an empty volume, in file-name order
 │   └── mock/                 unzip mock.zip here (not in git)
@@ -122,7 +124,7 @@ All paths are under http://localhost:8080. Bodies are JSON.
 | GET | `/api/debit-cards` | Yes | Main |
 | GET | `/api/banners` | Yes | Main |
 
-Every error has the same shape. Some codes add fields next to `code` and `message`:
+Every error from these 7 endpoints has the same shape. Some codes add fields next to `code` and `message`:
 
 ```json
 {"error":{"code":"PIN_LOCKED","message":"Too many attempts","retryAfterSec":60}}
@@ -192,7 +194,7 @@ GET /api/banners
 
 Accounts: Clare has 5, 3 are shown. `name` is sent only when the account has one. `progress` is sent only for `goal-saving-account`. `flags` is sent only for `credit-loan`, and only `Disbursement` and `Overdue`.
 
-Recent transactions: newest first by transaction ID, at most 10. Clare has 6.
+Recent transactions: highest `transaction_id` first, at most 10. Clare has 6.
 
 Debit cards: `number` is masked by the server. The first 6 and last 4 digits stay and the spacing is kept. A number with 10 digits or fewer keeps only the last 4. A card still in progress has no number.
 
@@ -233,7 +235,7 @@ docker compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USE
 docker compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER"' < db/init/50-indexes.sql
 ```
 
-The "before" run takes about 3 minutes. Restoring the indexes takes about 20 seconds. `bench.sh` needs bash and curl; on Windows use Git Bash or WSL.
+The "before" run takes about 3 minutes. Restoring the indexes takes about 20 seconds. `bench.sh` needs bash, curl, sort and awk; on Windows use Git Bash or WSL. It stops with a message when a request does not return 200, for example while Clare is PIN-locked.
 
 ## Tests
 
@@ -242,18 +244,17 @@ docker run --rm -v "$PWD/backend:/src" -w /src golang:1.26 go test ./...   # no 
 cd backend && go test ./...                                                  # with Go 1.26
 ```
 
-The unit tests cover the rules written for this project: PIN format, attempt counting, lock and reset, retry-after rounding, flag filtering, card number masking, account and card JSON shaping, and config loading.
 
 ## Development
 
 ```sh
-# Frontend dev server on http://localhost:3000, proxies /api to http://localhost:8080 (keep compose running)
+# Frontend dev server on http://localhost:3000 (Node 22.22 or newer), proxies /api to http://localhost:8080 (keep compose running)
 cd frontend && npm install && npm start
 # Rebuild the backend after a Go change
 docker compose up -d --build backend
 # MySQL shell
 docker compose exec db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" assignment'
-# bcrypt hash (cost 10) for a new PIN; put it in db/init/40-user-pins.sql, then down -v and up again
+# bcrypt hash (cost 10) for a new PIN (htpasswd ships with macOS; on Linux install apache2-utils); put it in db/init/40-user-pins.sql, then down -v and up again
 htpasswd -bnBC 10 "" <PIN> | tr -d ':\n'
 ```
 
@@ -267,7 +268,8 @@ Decisions the assignment left open, grouped by area.
 | Clare's rows follow the design image and template HTML, her debit cards follow the frontend `api-specs`, and her account numbers are all different | The sources disagree in places. The template's 4th card is a copy of the 3rd, and the design shows one account number on every card as a placeholder. |
 | Clare's IDs are readable (`clare`, `clare-acc-1`, `clare-card-1`, `clare-txn-01`) and sort in design order | Accounts and cards are returned `ORDER BY` ID, since MySQL guarantees no order without it. |
 | New table `account_names(account_id, name)` with a foreign key to `accounts`. An account without a name shows its type: Saving Account, Credit Loan or Goal Saving Account | The template's "Edit Name and Color" menu shows the name is set by the user, but the schema has no column for it. Only Clare's accounts have names. |
-| Recent transactions are the user's rows ordered by `transaction_id`, newest first, at most 10 | The schema has no time column, so true recency is not possible. |
+| Recent transactions are the user's rows ordered by `transaction_id`, highest first, at most 10 | The schema has no time column, so true recency is not possible. |
+| Clare's credit loan of `฿300.100` in the template is stored as `300.10` | The template has a typo; `api-specs.md` shows 300.10. |
 | Greeting, banner, transaction names and account numbers are shown as stored | Mock values like `Hello User_…` and `Transaction_135017` are the data. No account number format is defined. |
 | Development uses the full mock data, with no smaller dataset | A small dataset would hide what a reviewer meets (missing indexes, healthcheck timing). MySQL runs init files only on an empty volume, so the 3-minute import is paid only after a change in `db/init/`. |
 
@@ -275,7 +277,7 @@ Decisions the assignment left open, grouped by area.
 |---|---|
 | The user is identified by user ID only, entered in a dialog opened from "Login with ID / Password" on the PIN page | The mock data has no credentials. The assignment asks for three pages, so there is no extra login page. |
 | The user ID is kept in `localStorage`, so the next visit goes straight to the PIN page | The ID is not a secret. The secret is the session cookie. |
-| `GET /api/auth/profile` needs no login and returns the name only | The PIN page shows the name before login, like a banking app that remembers the device. Anyone who knows an ID can see the name. The lock state is not exposed. |
+| `GET /api/auth/profile` needs no login and returns the name only | The PIN page shows the name before login, like a banking app that remembers the device. Anyone who knows an ID can see the name. The lock state is not exposed. The PIN page photo is a grey placeholder, so nothing depends on an outside image. |
 | One PIN, `135795`, for every user | The mock data has no PINs, and a reviewer needs one to pass the PIN page. |
 | PINs are stored as bcrypt hashes (cost 10) in a new table `user_pins` with a foreign key to `users`. Only Go checks the PIN | No plain PIN is stored and the original tables stay unchanged. Cost 12 would not help: a 6-digit PIN has 1 million values, so a leaked hash falls at either cost (about 18 hours vs 3 days per core). The lock is what stops guessing. |
 | 4 attempts, then a 60-second lock. Both are configurable (`PIN_MAX_ATTEMPTS`, `PIN_LOCK_SECONDS`) | The template's first error says "You have 3 attempts left". The lock is short so a reviewer can test it. |
@@ -304,20 +306,22 @@ Decisions the assignment left open, grouped by area.
 | `style-loader` in both modes. No linter beyond `strict: true`. No polyfills | A single-page app shows nothing before JavaScript runs, so there is no unstyled flash to avoid. Modern browsers only. |
 | Redux Toolkit: one slice `identity` (`userId`, `userNotFound`), server data in RTK Query, page-only state in components | The frontend assignment asks for TypeScript and prefers Redux. Only state shared by several pages goes in the store. RTK Query ships with Redux Toolkit. |
 | The Main endpoints refetch every time the page opens | They take no user ID (the cookie identifies the user), so the cache key is the same for everyone. After a user switch, the next user could see the previous user's data. |
-| `BrowserRouter` with `/`, `/pin`, `/main`; anything else goes to `/`. Every navigation replaces the history entry | nginx and the dev server fall back to `index.html`. Back on the Main page leaves the app instead of returning to the PIN page. |
+| react-router 8 with `BrowserRouter`: `/`, `/pin`, `/main`; anything else goes to `/`. Every navigation replaces the history entry | nginx and the dev server fall back to `index.html`. Back on the Main page leaves the app instead of returning to the PIN page. |
 | The Splash page shows only at `/` and loads the profile, for at least 1 second | It does real work rather than a fixed delay, but the profile answers in milliseconds and the page would flash. |
+| A stored user ID that the profile no longer finds (404) is cleared, and the dialog opens with "User not found." and cannot be closed | The ID came from this browser's storage; only the user can give a new one. |
 | The Main page has no client-side guard | JavaScript cannot read an `HttpOnly` cookie. A 401 from the API sends the user to the PIN page. |
 | The PIN is sent automatically at 6 digits and the keypad is disabled while waiting. Keyboard 0-9 and Backspace work | The template keypad has no submit button. The delete key stays from the template, although the design image does not show it. |
 | The PIN error or lock message replaces the name | The template positions that message over the name. |
 | A failed PIN request (500, network, timeout) is never re-sent automatically | A timeout may mean Go already counted the attempt. Re-sending would count it twice. |
 | Every request times out after 10 seconds | Same as Go's write timeout. Without it the page would wait for nginx's 60 seconds. |
-| One message, "Something went wrong. Please try again.", for 500, network errors, timeouts and 502 | The user's next step is the same in every case. |
+| One message, "Something went wrong. Please try again.", for 500, network errors, timeouts, a 502 from nginx, and any status without its own handling (such as 400) | The user's next step is the same in every case. On the PIN page the retry is a refresh or the dialog's Confirm. A failed dialog request keeps the dialog open with the typed ID. |
 | If any Main endpoint fails, the whole page shows one error box with "Try again" | A bank page with missing cards suggests missing accounts, and the template has no per-section error style. "Try again" refetches only the failed endpoints. |
 | If the profile fails on the Splash page, the app still goes to the PIN page and keeps the user ID | The user probably exists and the network failed. The PIN page loads the profile again. |
 | The identity dialog is a native `<dialog>` with `showModal()`. It cannot be closed while no user ID is set | Backdrop, focus and Escape come from the browser. |
 | The template stylesheet sits in `src/assets/css` next to `src/assets/img`, changed in 3 places: two `bg_profile.png` backgrounds and the `.rctly__thumb.is-bank` rule are removed | The template's `url(../img/…)` paths keep working. The removed images were not supplied, and css-loader fails the build on a missing `url()`. The grey background stays as the placeholder. |
 | A picture that fails to load is hidden, leaving the grey circle | The image URLs point to an external site. |
 | The "Make your Debit Card" block is left out | Every user has a card, and its image was not supplied. |
+| The main account is the large card and is not repeated in the small list. A small card's corner depends on its type: saving shows Add money, a credit loan with an Overdue flag shows Pay, other credit loans show Disburse, a goal shows its progress ring | This follows the template and the design image. |
 | Card colours come from the data as inline styles, not the template's colour classes. A white card (`#ffffff`) gets the template's grey text | Mock accounts are all green; Clare's colours match the design. White is the only light card colour in the data, so text colour is not computed from brightness. |
 | The debit card strip width is computed from the card count | The template hard-codes `1595px`. |
 | An `Active` card shows its number. Other statuses show text (`in-progress` shows "In progress") | Cards in progress have no number. |
@@ -328,13 +332,13 @@ Decisions the assignment left open, grouped by area.
 |---|---|
 | Go standard library `net/http` router with three packages: `go-sql-driver/mysql`, `x/crypto/bcrypt`, `golang-jwt/jwt/v5`. No Gin or Fiber | The assignment names the language only. Since Go 1.22 the router matches method and path. |
 | Go packages by feature (`auth`, `home`), each with `handler.go`, `store.go` (SQL) and `rules.go` (pure rules) | A change to the PIN rules stays in one folder. Seven endpoints do not need handler, service and repository layers. `home` is the Main page, since a package cannot be named `main`. |
-| Unit tests only for functions that do not touch the database, with no mocks or interfaces | SQL is checked by running it against the real database. |
+| Unit tests only for functions that do not touch the database, with no mocks or interfaces: PIN format, attempt counting, lock and reset, retry-after rounding, flag filtering, card number masking, account and card JSON shaping, config loading, and the error body | SQL is checked by running it against the real database. JWT handling is the library's own code; the middleware was checked on the running stack. |
 | nginx serves the build and proxies `/api/` to Go | One origin: no CORS, and no API URL baked into the build. The dev server proxy does the same. |
 | Required environment: `DB_*`, `JWT_SECRET`. Defaults in Go: `PORT` 8080, `COOKIE_SECURE` false, `SESSION_TTL_SECONDS` 900, `PIN_MAX_ATTEMPTS` 4, `PIN_LOCK_SECONDS` 60 | A missing required value stops the server with the variable's name. A bad optional value falls back to its default. The DSN is built in code with `parseTime` and UTC, so those cannot be mistyped. |
 | Default connection pool. Fixed server timeouts: 5 s read header, 10 s read, 10 s write, 60 s idle. One `log/slog` line per request | The latency gain comes from the indexes, not pool tuning. |
 | No graceful shutdown | Not asked for. The PIN transaction rolls back if the server stops mid-request. |
 | MySQL 8.4 with `--skip-log-bin` | The binary log would write about 3 GB more during the import. |
-| The backend connects as `MYSQL_USER`, which only has rights on `assignment` | Root is for administration only. Each service gets only the variables it uses. |
+| The backend connects as `MYSQL_USER`, which only has rights on `assignment` | Root is for administration only. Each service gets only the variables it uses. A required variable missing from `.env` makes `docker compose` stop and name it. |
 | The mock is loaded with SQL `SOURCE` lines, not a shell script | On a Docker Desktop bind mount the image's entrypoint executes `.sh` init files instead of sourcing them. A missing file stops the init with its name. |
 | The db healthcheck waits for `init_done` over TCP, with a 15-minute start period | The temporary init server listens only on the socket. The long start period allows for slow machines and does not slow down fast ones. |
 | Images: a static Go binary (`CGO_ENABLED=0`) on distroless `nonroot`; the frontend built on `node:24-alpine` and served by `nginx:1.30-alpine` | The MySQL driver is pure Go, so the runtime needs no C library or shell. Only built files reach the final images. |
