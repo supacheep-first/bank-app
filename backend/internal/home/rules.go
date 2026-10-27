@@ -3,6 +3,8 @@ package home
 import (
 	"encoding/json"
 	"slices"
+	"strings"
+	"unicode"
 )
 
 // account is the /api/accounts element. A nil pointer or empty slice is left
@@ -41,4 +43,53 @@ func toAccount(r accountRow) account {
 		}
 	}
 	return a
+}
+
+// debitCard is the /api/debit-cards element. A nil pointer is left out of the
+// JSON. Number is already masked: debitCardRow, which holds the full number,
+// is never serialised.
+type debitCard struct {
+	Name        *string `json:"name,omitempty"`
+	Status      *string `json:"status,omitempty"`
+	Issuer      *string `json:"issuer,omitempty"`
+	Color       *string `json:"color,omitempty"`
+	BorderColor *string `json:"borderColor,omitempty"`
+	Number      *string `json:"number,omitempty"`
+}
+
+// maskCardNumber replaces digits with • (U+2022) and keeps every other
+// character where it is. More than 10 digits: the first 6 and last 4 stay.
+// 10 or fewer: only the last 4 stay (6+4 would hide nothing).
+func maskCardNumber(s string) string {
+	total := 0
+	for _, r := range s {
+		if unicode.IsDigit(r) {
+			total++
+		}
+	}
+	head := 6
+	if total <= 10 {
+		head = 0
+	}
+	n := 0 // digits seen so far
+	return strings.Map(func(r rune) rune {
+		if !unicode.IsDigit(r) {
+			return r
+		}
+		n++
+		if n > head && n <= total-4 {
+			return '•'
+		}
+		return r
+	}, s)
+}
+
+// toDebitCard is the only way a card number leaves Go: masked, NULL stays nil.
+func toDebitCard(r debitCardRow) debitCard {
+	c := debitCard{Name: r.Name, Status: r.Status, Issuer: r.Issuer, Color: r.Color, BorderColor: r.BorderColor}
+	if r.Number != nil {
+		m := maskCardNumber(*r.Number)
+		c.Number = &m
+	}
+	return c
 }

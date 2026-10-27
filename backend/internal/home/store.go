@@ -130,3 +130,37 @@ func bannersByUser(ctx context.Context, db *sql.DB, userID string) ([]banner, er
 	}
 	return out, rows.Err()
 }
+
+// debitCardRow is one debit card as stored: every column nullable, Number is
+// the full card number. toDebitCard masks it; this type is never serialised.
+type debitCardRow struct {
+	Name, Status, Issuer, Color, BorderColor, Number *string
+}
+
+// debitCardsByUser: the four debit_card_* tables join on the card_id PK (only
+// debit_cards has an index on user_id). LEFT JOIN: a card missing a child row
+// still comes back, with that field left out.
+func debitCardsByUser(ctx context.Context, db *sql.DB, userID string) ([]debitCardRow, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT c.name, s.status, d.issuer, g.color, g.border_color, d.number
+		 FROM debit_cards c
+		 LEFT JOIN debit_card_status s ON s.card_id = c.card_id
+		 LEFT JOIN debit_card_details d ON d.card_id = c.card_id
+		 LEFT JOIN debit_card_design g ON g.card_id = c.card_id
+		 WHERE c.user_id = ?
+		 ORDER BY c.card_id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []debitCardRow
+	for rows.Next() {
+		var r debitCardRow
+		if err := rows.Scan(&r.Name, &r.Status, &r.Issuer, &r.Color, &r.BorderColor, &r.Number); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}

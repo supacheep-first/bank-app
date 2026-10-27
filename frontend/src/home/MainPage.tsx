@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
-import { useGetAccountsQuery, useGetBannersQuery, useGetRecentQuery, useGetUserQuery } from '../api'
+import {
+  useGetAccountsQuery,
+  useGetBannersQuery,
+  useGetDebitCardsQuery,
+  useGetRecentQuery,
+  useGetUserQuery,
+} from '../api'
 import Loader from '../common/Loader'
 import AccountCard from './AccountCard'
 import Banner from './Banner'
+import DebitCardList from './DebitCardList'
 import Header from './Header'
 import MainAccountCard from './MainAccountCard'
 import RecentList from './RecentList'
@@ -19,9 +26,9 @@ export default function MainPage() {
   const user = useGetUserQuery(undefined, FRESH)
   const accounts = useGetAccountsQuery(undefined, FRESH)
   const recent = useGetRecentQuery(undefined, FRESH)
+  const debitCards = useGetDebitCardsQuery(undefined, FRESH)
   const banners = useGetBannersQuery(undefined, FRESH)
-  // card 08: give the endpoint keepUnusedDataFor: 0 in api.ts, call its query with FRESH and add it to this list
-  const queries = [user, accounts, recent, banners]
+  const queries = [user, accounts, recent, debitCards, banners]
   // index (in the accounts array) of the card whose ⋮ menu is open: one state = one menu at a time.
   // Not accountNumber: the mock repeats a number within one user's accounts.
   const [menu, setMenu] = useState<number>()
@@ -54,7 +61,7 @@ export default function MainPage() {
           </div>
           {mainIndex >= 0 && <MainAccountCard account={accounts.data![mainIndex]} {...menuState(mainIndex)} />}
           {recent.data && <RecentList items={recent.data} />}
-          {/* order: main account (order3) · recent (order5) · debit cards (order6) · other accounts · banner · Total Balance */}
+          {debitCards.data && <DebitCardList cards={debitCards.data} />}
           {accounts.data?.map((a, i) => !a.isMainAccount && <AccountCard key={i} account={a} {...menuState(i)} />)}
           {banners.data?.map((b, i) => <Banner key={i} {...b} />)}
           <div className="main-tb">

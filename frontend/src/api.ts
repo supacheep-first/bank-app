@@ -26,6 +26,16 @@ export interface BannerItem {
   image: string
 }
 
+// number (masked by Go) · borderColor come only when the card has them (api-specs 4)
+export interface DebitCard {
+  name: string
+  status: string
+  issuer: string
+  color: string
+  borderColor?: string
+  number?: string
+}
+
 export const api = createApi({
   baseQuery: fetchBaseQuery({ baseUrl: '/api', timeout: 10_000 }),
   endpoints: (build) => ({
@@ -38,6 +48,7 @@ export const api = createApi({
     getUser: build.query<{ name?: string; greetingMessage?: string }, void>({ query: () => '/user', keepUnusedDataFor: 0 }),
     getAccounts: build.query<Account[], void>({ query: () => '/accounts', keepUnusedDataFor: 0 }),
     getRecent: build.query<RecentItem[], void>({ query: () => '/transactions/recent', keepUnusedDataFor: 0 }),
+    getDebitCards: build.query<DebitCard[], void>({ query: () => '/debit-cards', keepUnusedDataFor: 0 }),
     getBanners: build.query<BannerItem[], void>({ query: () => '/banners', keepUnusedDataFor: 0 }),
     // 204 → data is null; the session cookie is httpOnly, JS never sees it
     submitPin: build.mutation<null, { userId: string; pin: string }>({
@@ -52,6 +63,7 @@ export const {
   useGetUserQuery,
   useGetAccountsQuery,
   useGetRecentQuery,
+  useGetDebitCardsQuery,
   useGetBannersQuery,
   useSubmitPinMutation,
 } = api

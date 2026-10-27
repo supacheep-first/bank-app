@@ -43,6 +43,7 @@ func main() {
 	homeH := home.Handler{DB: db}
 	mux.HandleFunc("GET /api/user", authH.Require(homeH.User))
 	mux.HandleFunc("GET /api/accounts", authH.Require(homeH.Accounts))
+	mux.HandleFunc("GET /api/debit-cards", authH.Require(homeH.DebitCards))
 	mux.HandleFunc("GET /api/transactions/recent", authH.Require(homeH.Recent))
 	mux.HandleFunc("GET /api/banners", authH.Require(homeH.Banners))
 

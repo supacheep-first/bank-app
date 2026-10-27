@@ -56,3 +56,49 @@ func TestToAccount(t *testing.T) {
 		}
 	}
 }
+
+func TestMaskCardNumber(t *testing.T) {
+	for _, c := range []struct{ name, in, want string }{
+		{"16 digits: first 6 and last 4", "9440 7841 2222 3115", "9440 78•• •••• 3115"},
+		{"mock user", "6821 5668 7876 2379", "6821 56•• •••• 2379"},
+		{"13 digits, uneven spaces", "0 1471 7356 2371", "0 1471 7••• 2371"},
+		{"11 digits: one hidden", "0 4111 560 467", "0 4111 5•0 467"},
+		{"11 digits is the first with a 6+4 gap", "12345678901", "123456•8901"},
+		{"10 digits: last 4 only", "1234567890", "••••••7890"},
+		{"7 digits", "80 55 33 1", "•• •5 33 1"},
+		{"6 digits", "6 8 22 87", "• • 22 87"},
+		{"4 digits: nothing left to hide", "1234", "1234"},
+		{"empty", "", ""},
+		{"no spaces", "9440784122223115", "944078••••••3115"},
+	} {
+		if got := maskCardNumber(c.in); got != c.want {
+			t.Errorf("%s: maskCardNumber(%q) = %q, want %q", c.name, c.in, got, c.want)
+		}
+	}
+}
+
+func TestToDebitCard(t *testing.T) {
+	s := func(v string) *string { return &v }
+
+	for _, c := range []struct {
+		name string
+		in   debitCardRow
+		want string // the JSON that reaches the client
+	}{
+		{"active: number masked, border sent",
+			debitCardRow{Name: s("My Debit card"), Status: s("Active"), Issuer: s("TestLab"), Color: s("#ffffff"), BorderColor: s("#f2f3f7"), Number: s("9440 7841 2222 3115")},
+			`{"name":"My Debit card","status":"Active","issuer":"TestLab","color":"#ffffff","borderColor":"#f2f3f7","number":"9440 78•• •••• 3115"}`},
+		{"in-progress: NULL number and border leave no key",
+			debitCardRow{Name: s("My Salary"), Status: s("in-progress"), Issuer: s("TestLab"), Color: s("#00a1e2")},
+			`{"name":"My Salary","status":"in-progress","issuer":"TestLab","color":"#00a1e2"}`},
+		{"short number: last 4 only",
+			debitCardRow{Number: s("6 8 22 87")},
+			`{"number":"• • 22 87"}`},
+		{"all NULL", debitCardRow{}, `{}`},
+	} {
+		got, err := json.Marshal(toDebitCard(c.in))
+		if err != nil || string(got) != c.want {
+			t.Errorf("%s:\n got  %s (%v)\n want %s", c.name, got, err, c.want)
+		}
+	}
+}

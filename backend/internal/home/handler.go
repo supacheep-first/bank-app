@@ -42,6 +42,20 @@ func (h Handler) Accounts(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, accounts)
 }
 
+// DebitCards: GET /api/debit-cards -> 200 [card...] ordered by card_id, number masked (always an array) | 401 UNAUTHENTICATED
+func (h Handler) DebitCards(w http.ResponseWriter, r *http.Request) {
+	rows, err := debitCardsByUser(r.Context(), h.DB, auth.UserID(r.Context()))
+	if err != nil {
+		httpx.WriteInternal(w, r, err)
+		return
+	}
+	cards := make([]debitCard, len(rows)) // non-nil: no cards is [] not null
+	for i, row := range rows {
+		cards[i] = toDebitCard(row)
+	}
+	httpx.WriteJSON(w, http.StatusOK, cards)
+}
+
 // Recent: GET /api/transactions/recent -> 200 [transaction...] newest ten by transaction_id (always an array) | 401 UNAUTHENTICATED
 func (h Handler) Recent(w http.ResponseWriter, r *http.Request) {
 	txns, err := recentByUser(r.Context(), h.DB, auth.UserID(r.Context()))
