@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -40,12 +41,13 @@ func (h Handler) Profile(w http.ResponseWriter, r *http.Request) {
 func (h Handler) SubmitPIN(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC().Truncate(time.Second) // the only clock read; datetime has no fraction
 
-	// 1. pin must be 6 digits; a body that is not JSON of that shape fails the same way. No DB.
+	// 1. pin must be 6 digits; a body that is not exactly one JSON object of that shape fails the same way. No DB.
 	var in struct {
 		UserID string `json:"userId"`
 		PIN    string `json:"pin"`
 	}
-	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&in) != nil || !validPIN(in.PIN) {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10))
+	if dec.Decode(&in) != nil || dec.Decode(&struct{}{}) != io.EOF || !validPIN(in.PIN) {
 		httpx.WriteError(w, http.StatusBadRequest, "VALIDATION_ERROR", "PIN must be 6 digits", nil)
 		return
 	}

@@ -37,6 +37,8 @@ cp .env.example .env
 docker compose up -d --wait
 ```
 
+On Windows without `unzip`, `tar -xf mock.zip -C db/mock` does the same.
+
 The first start imports the mock data and builds the indexes. It took 177 seconds on an M1 Pro, not counting image pulls. The command returns when all three services are up.
 
 Open http://localhost:8080.
@@ -56,6 +58,7 @@ On the first visit the PIN page opens a "Login with ID" dialog with `clare` fill
 |---|---|
 | `--wait` fails or never returns | Run `docker compose down -v`, then `docker compose up -d --wait`. Init files run only on an empty volume, and an init that stopped halfway never creates `init_done`. |
 | The db container exits and `docker compose logs db` shows `Failed to open file '/mock/<name>.sql'` | A mock file is missing. The 12 `.sql` files must sit directly in `db/mock/`. Unzip again, then `down -v` and `up -d --wait`. |
+| Port 8080 is already in use | Stop the program that uses it, or change `"8080:80"` in `docker-compose.yml` to another host port. |
 | What is `init_done`? | An empty marker table created by the last init file. The db healthcheck waits for it, so the backend starts only after the import and the indexes are done. |
 
 ## Project structure
@@ -124,7 +127,7 @@ All paths are under http://localhost:8080. Bodies are JSON.
 | GET | `/api/debit-cards` | Yes | Main |
 | GET | `/api/banners` | Yes | Main |
 
-Every error from these 7 endpoints has the same shape. Some codes add fields next to `code` and `message`:
+Every error these 7 endpoints return has the same shape. Some codes add fields next to `code` and `message`:
 
 ```json
 {"error":{"code":"PIN_LOCKED","message":"Too many attempts","retryAfterSec":60}}
@@ -148,7 +151,7 @@ GET /api/auth/profile?userId=clare
 404  {"error":{"code":"USER_NOT_FOUND","message":"User not found"}}
 ```
 
-User IDs are case-insensitive, so `Clare` works too.
+User IDs are case- and accent-insensitive (the column collation is `utf8mb4_0900_ai_ci`), so `Clare` works too. A wrong method or an unknown path gets Go's plain-text 405 or 404, and nginx answers 502 in HTML while Go is down.
 
 ```
 POST /api/auth/pin
@@ -284,7 +287,7 @@ Decisions the assignment left open, grouped by area.
 | A correct PIN resets the counter. During the lock even the correct PIN is refused. After the lock the user gets 4 new attempts | The counter is reset on the next attempt after the lock ends, so there is no background job and no attempts log. |
 | A locked user is refused before the bcrypt check. Otherwise the counter is updated in a transaction with `SELECT … FOR UPDATE`, after the bcrypt check | Locked users cost no bcrypt CPU. Without the row lock, parallel requests read the same counter and each gets a free guess. Checking bcrypt first keeps the row locked for milliseconds. It stays correct with several Go instances. |
 | Go passes the current time into queries (UTC, whole seconds), stored as `datetime` | One clock for every request, and tests can use a fake time. `timestamp` would convert by connection time zone. |
-| The session is a JWT in an `HttpOnly`, `SameSite=Strict` cookie | JavaScript cannot read it, so an XSS bug cannot steal it. The page and the API share one origin, so `Strict` needs no extra setup. |
+| The session is a JWT in an `HttpOnly`, `SameSite=Strict` cookie | JavaScript cannot read it, so an XSS bug cannot steal it. The page and the API share one origin, so `Strict` needs no extra setup. The `JWT_SECRET` in `.env.example` is a development value that anyone with the repo can read; a real deployment sets its own. |
 | 15-minute session with no refresh token. A 401 on the Main page goes back to the PIN page | The user ID is still remembered, so only the PIN is asked again. |
 | PIN messages: "You have N attempt(s) left" and "Try again in N second(s)" with a live countdown | The server sends numbers (`attemptsLeft`, `retryAfterSec`). The page builds the text and gets singular and plural right. |
 
@@ -334,6 +337,7 @@ Decisions the assignment left open, grouped by area.
 | Go packages by feature (`auth`, `home`), each with `handler.go`, `store.go` (SQL) and `rules.go` (pure rules) | A change to the PIN rules stays in one folder. Seven endpoints do not need handler, service and repository layers. `home` is the Main page, since a package cannot be named `main`. |
 | Unit tests only for functions that do not touch the database, with no mocks or interfaces: PIN format, attempt counting, lock and reset, retry-after rounding, flag filtering, card number masking, account and card JSON shaping, config loading, and the error body | SQL is checked by running it against the real database. JWT handling is the library's own code; the middleware was checked on the running stack. |
 | nginx serves the build and proxies `/api/` to Go | One origin: no CORS, and no API URL baked into the build. The dev server proxy does the same. |
+| nginx compresses JS, CSS and JSON. The content-hashed bundle is cached for a year; `index.html` is always revalidated | The bundle is about 380 KB uncompressed. A new build gets a new file name, so a long cache never serves old code. |
 | Required environment: `DB_*`, `JWT_SECRET`. Defaults in Go: `PORT` 8080, `COOKIE_SECURE` false, `SESSION_TTL_SECONDS` 900, `PIN_MAX_ATTEMPTS` 4, `PIN_LOCK_SECONDS` 60 | A missing required value stops the server with the variable's name. A bad optional value falls back to its default. The DSN is built in code with `parseTime` and UTC, so those cannot be mistyped. |
 | Default connection pool. Fixed server timeouts: 5 s read header, 10 s read, 10 s write, 60 s idle. One `log/slog` line per request | The latency gain comes from the indexes, not pool tuning. |
 | No graceful shutdown | Not asked for. The PIN transaction rolls back if the server stops mid-request. |
@@ -352,6 +356,7 @@ Decisions the assignment left open, grouped by area.
 | Refresh token and logout | The session lasts 15 minutes, then the PIN is asked again. The design has no logout control. |
 | Increasing PIN lock time | The lock is 60 seconds every time so a reviewer can test it. A real system should lengthen it after each lock. |
 | Per-user salt | Every user shares one bcrypt hash of the same PIN. Generating 1 million hashes takes about 18 hours. A real system has each user's own PIN and salt. |
+| Rate limiting across users | The PIN lock is per user, so someone could still try 4 PINs a minute on every user ID. A real system adds a limit in front (for example nginx `limit_req`) and binds the user to a device. |
 | Swagger or OpenAPI UI | Seven endpoints with real examples fit in this README. |
 | Pages behind buttons that lead nowhere | The assignment asks for three pages. ☰, ✕, Withdrawal, QR scan, Add money, Disburse, Pay, recent items, See all, the banner, Total Balance and the ⋮ menu items render as in the template and do nothing. |
 | Frontend tests | The optional unit tests cover the backend rules. |
