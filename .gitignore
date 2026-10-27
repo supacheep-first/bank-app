@@ -1,6 +1,7 @@
 # Allow only project files at the root
 /*
 !/.gitignore
+!/.gitattributes
 !/README.md
 !/docker-compose.yml
 !/.env.example
