@@ -1,6 +1,5 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 
-// name · progress · flags come only when the account has them (api-specs 2, DECISIONS 13)
 export interface Account {
   type: 'saving-account' | 'credit-loan' | 'goal-saving-account'
   amount: number
@@ -26,7 +25,7 @@ export interface BannerItem {
   image: string
 }
 
-// number (masked by Go) · borderColor come only when the card has them (api-specs 4)
+// number arrives already masked by Go
 export interface DebitCard {
   name: string
   status: string
@@ -36,7 +35,7 @@ export interface DebitCard {
   number?: string
 }
 
-// The one text for every failure without its own answer: 500 · FETCH_ERROR · TIMEOUT_ERROR · PARSING_ERROR · 400 (DECISIONS 24).
+// The one text for every failure without its own answer: 500 · FETCH_ERROR · TIMEOUT_ERROR · PARSING_ERROR · 400.
 // Never error.message from Go.
 export const ERROR_MESSAGE = 'Something went wrong. Please try again.'
 
@@ -46,9 +45,8 @@ export const api = createApi({
     getProfile: build.query<{ name: string }, string>({
       query: (userId) => ({ url: '/auth/profile', params: { userId } }),
     }),
-    // Main page endpoints: no userId, Go knows the user from the session cookie (DECISIONS 20).
-    // keepUnusedDataFor: 0 drops the cache when MainPage unmounts, so the next visit (maybe another user,
-    // maybe after a 401) starts empty and shows the loader instead of the old result.
+    // No userId: Go knows the user from the session cookie. keepUnusedDataFor: 0 stops the first render of a later
+    // visit (another user, or after a 401) from showing the old result.
     getUser: build.query<{ name?: string; greetingMessage?: string }, void>({ query: () => '/user', keepUnusedDataFor: 0 }),
     getAccounts: build.query<Account[], void>({ query: () => '/accounts', keepUnusedDataFor: 0 }),
     getRecent: build.query<RecentItem[], void>({ query: () => '/transactions/recent', keepUnusedDataFor: 0 }),

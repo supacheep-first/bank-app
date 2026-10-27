@@ -4,7 +4,7 @@ import type { Account } from '../api'
 export const formatMoney = (amount: number, currency: string) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency, currencyDisplay: 'narrowSymbol' }).format(amount)
 
-// label: card title when the account has no name · detail: prefix of the number line (DECISIONS 13, 21)
+// label: card title when the account has no name · detail: prefix of the number line
 const TYPES = {
   'saving-account': { label: 'Saving Account', detail: 'Smart account', powered: true },
   'credit-loan': { label: 'Credit Loan', detail: 'Credit Loan', powered: false },

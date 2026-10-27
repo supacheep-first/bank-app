@@ -16,7 +16,7 @@ import LoadError from './LoadError'
 import MainAccountCard from './MainAccountCard'
 import RecentList from './RecentList'
 
-// Main endpoints take no userId, so every user shares one cache key: always refetch on mount (DECISIONS 20)
+// Main endpoints take no userId, so every user shares one cache key: always refetch on mount
 const FRESH = { refetchOnMountOrArgChange: true }
 
 // isError, not error: a refetch keeps the previous error until it settles
@@ -44,7 +44,7 @@ export default function MainPage() {
   }, [])
 
   if (queries.some(unauthorized)) return <Navigate to="/pin" replace />
-  // wait for every query so a 401 still arrives before the error box (DECISIONS 24)
+  // wait for every query so a 401 still arrives before the error box
   if (queries.some((q) => q.isFetching)) return <Loader />
   // whole-page box, never a page with parts missing; Try again refetches only the ones that failed
   if (queries.some((q) => q.isError)) {

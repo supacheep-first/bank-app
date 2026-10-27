@@ -7,7 +7,7 @@ import IdentifyDialog from './IdentifyDialog'
 import Keypad from './Keypad'
 import PinDots, { PIN_LENGTH } from './PinDots'
 
-// Go's error body (DECISIONS 12); the page builds its own text from these fields
+// Go's error body; the page builds its own text from these fields
 interface PinErrorData {
   error?: { attemptsLeft?: number; retryAfterSec?: number }
 }

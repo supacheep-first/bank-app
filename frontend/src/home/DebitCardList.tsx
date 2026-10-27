@@ -9,7 +9,7 @@ const statusText = (s: string) => s[0].toUpperCase() + s.slice(1).replace(/-/g, 
 const stripWidth = (count: number) => count * 250 + 94
 
 // Only the template's white card has dark text (#97999e, issuer #d3d3d2); every other colour keeps the CSS default white.
-// Cards and "See all" do nothing yet, so they are buttons (DECISIONS 21); the key is the index, names repeat in the mock.
+// Cards and "See all" do nothing yet, so they are buttons; the key is the index, names repeat in the mock.
 export default function DebitCardList({ cards }: { cards: DebitCard[] }) {
   return (
     <div className="debit-swipe__wrap main-loading main-loading--order6">

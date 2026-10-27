@@ -35,7 +35,7 @@ func (h Handler) Profile(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]string{"name": name})
 }
 
-// SubmitPIN: POST /api/auth/pin {"userId","pin"} -> steps 1-5 of DECISIONS 15.
+// SubmitPIN: POST /api/auth/pin {"userId","pin"}, in five numbered steps.
 // 204 + session cookie | 400 VALIDATION_ERROR | 401 PIN_INVALID | 404 USER_NOT_FOUND | 429 PIN_LOCKED
 func (h Handler) SubmitPIN(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC().Truncate(time.Second) // the only clock read; datetime has no fraction
@@ -106,7 +106,7 @@ func writeLocked(w http.ResponseWriter, sec int) {
 }
 
 // sessionCookie issues the login cookie: JWT HS256 signed with JWTSecret,
-// claims sub = userID and exp = now + SessionTTLSeconds (DECISIONS 12).
+// claims sub = userID and exp = now + SessionTTLSeconds.
 func sessionCookie(cfg config.Config, userID string, now time.Time) (*http.Cookie, error) {
 	ttl := time.Duration(cfg.SessionTTLSeconds) * time.Second
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{

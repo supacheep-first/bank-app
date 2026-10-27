@@ -7,7 +7,7 @@ export interface MenuState {
   onToggle: () => void
 }
 
-// ⋮ button + its menu, shared by both card sizes. The items do nothing (DECISIONS 21).
+// ⋮ button + its menu, shared by both card sizes. The items do nothing.
 export function MoreMenu({
   items,
   small,
@@ -33,7 +33,7 @@ export function MoreMenu({
   )
 }
 
-// The one place that picks the bottom-right corner (DECISIONS 13)
+// The one place that picks the bottom-right corner
 function Corner({ type, flags, progress = 0 }: Account) {
   if (type === 'goal-saving-account') {
     return (

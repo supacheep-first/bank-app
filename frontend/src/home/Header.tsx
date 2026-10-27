@@ -1,4 +1,4 @@
-// ☰ and ✕ lead nowhere in this app (DECISIONS 21), so the buttons do nothing
+// ☰ and ✕ lead nowhere in this app, so the buttons do nothing
 export default function Header() {
   return (
     <header className="header">
