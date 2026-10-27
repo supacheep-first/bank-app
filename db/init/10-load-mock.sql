@@ -1,0 +1,12 @@
+SOURCE /mock/account_balances.sql;
+SOURCE /mock/account_details.sql;
+SOURCE /mock/account_flags.sql;
+SOURCE /mock/accounts.sql;
+SOURCE /mock/banners.sql;
+SOURCE /mock/debit_card_design.sql;
+SOURCE /mock/debit_card_details.sql;
+SOURCE /mock/debit_card_status.sql;
+SOURCE /mock/debit_cards.sql;
+SOURCE /mock/transactions.sql;
+SOURCE /mock/user_greetings.sql;
+SOURCE /mock/users.sql;
