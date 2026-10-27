@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useSubmitPinMutation } from '../api'
 import { useAppSelector, useProfile } from '../hooks'
+import IdentifyDialog from './IdentifyDialog'
 import Keypad from './Keypad'
 import PinDots, { PIN_LENGTH } from './PinDots'
 
@@ -18,6 +19,8 @@ export default function PinPage() {
   const [pin, setPin] = useState('')
   const [attemptsLeft, setAttemptsLeft] = useState<number>()
   const [secondsLeft, setSecondsLeft] = useState(0)
+  const [linkOpen, setLinkOpen] = useState(false)
+  const dialogOpen = !userId || linkOpen
   const locked = secondsLeft > 0
   const disabled = isLoading || locked
   const showMessage = locked || attemptsLeft !== undefined
@@ -54,9 +57,17 @@ export default function PinPage() {
     if (!disabled) setPin(pin.slice(0, -1))
   }
 
+  // the lock belongs to the previous user, so a new identity starts clean
+  function onIdentified() {
+    setLinkOpen(false)
+    setPin('')
+    setAttemptsLeft(undefined)
+    setSecondsLeft(0)
+  }
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (dialogOpen || e.ctrlKey || e.metaKey || e.altKey) return
       if (/^\d$/.test(e.key)) press(e.key)
       else if (e.key === 'Backspace') remove()
     }
@@ -89,11 +100,17 @@ export default function PinPage() {
             <PinDots filled={pin.length} />
           </div>
           <div className="pin__btm">
+            <button type="button" className="pin__login" onClick={() => setLinkOpen(true)}>
+              Login with ID / Password
+            </button>
             <span className="pin__kb">Powered by TestLab</span>
             <Keypad disabled={disabled} onDigit={press} onDelete={remove} />
           </div>
         </div>
       </main>
+      {dialogOpen && (
+        <IdentifyDialog key={userId ?? ''} onClose={() => setLinkOpen(false)} onIdentified={onIdentified} />
+      )}
     </div>
   )
 }

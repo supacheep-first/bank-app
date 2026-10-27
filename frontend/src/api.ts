@@ -13,4 +13,4 @@ export const api = createApi({
   }),
 })
 
-export const { useGetProfileQuery, useSubmitPinMutation } = api
+export const { useGetProfileQuery, useLazyGetProfileQuery, useSubmitPinMutation } = api
