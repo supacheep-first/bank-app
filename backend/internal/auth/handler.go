@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -119,4 +120,33 @@ func sessionCookie(cfg config.Config, userID string, now time.Time) (*http.Cooki
 		Name: "session", Value: token, Path: "/", MaxAge: cfg.SessionTTLSeconds,
 		HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: cfg.CookieSecure,
 	}, nil
+}
+
+type ctxKey struct{}
+
+// UserID is the user id Require stored in ctx (the JWT sub, as spelled in the
+// DB). Only meaningful inside a handler wrapped by Require.
+func UserID(ctx context.Context) string {
+	id, _ := ctx.Value(ctxKey{}).(string)
+	return id
+}
+
+// Require guards the Main-page endpoints: a valid, unexpired session cookie
+// puts the user id in the request context; anything else is 401 UNAUTHENTICATED
+// (no cookie, bad signature, wrong alg, expired and missing exp/sub look the same).
+func (h Handler) Require(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		c, err := r.Cookie("session")
+		var claims jwt.RegisteredClaims
+		if err == nil {
+			_, err = jwt.ParseWithClaims(c.Value, &claims,
+				func(*jwt.Token) (any, error) { return []byte(h.Cfg.JWTSecret), nil },
+				jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
+		}
+		if err != nil || claims.Subject == "" {
+			httpx.WriteError(w, http.StatusUnauthorized, "UNAUTHENTICATED", "Not signed in", nil)
+			return
+		}
+		next(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, claims.Subject)))
+	}
 }

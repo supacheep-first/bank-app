@@ -13,6 +13,7 @@ import (
 
 	"backend/internal/auth"
 	"backend/internal/config"
+	"backend/internal/home"
 	"backend/internal/httpx"
 )
 
@@ -38,6 +39,9 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/auth/profile", authH.Profile)
 	mux.HandleFunc("POST /api/auth/pin", authH.SubmitPIN)
+
+	homeH := home.Handler{DB: db}
+	mux.HandleFunc("GET /api/user", authH.Require(homeH.User))
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),

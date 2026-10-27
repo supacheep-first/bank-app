@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import MainPage from './home/MainPage'
 import PinPage from './pin/PinPage'
 import SplashPage from './splash/SplashPage'
 
@@ -8,8 +9,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<SplashPage />} />
         <Route path="/pin" element={<PinPage />} />
-        {/* blank until the Main page (card 05) */}
-        <Route path="/main" />
+        <Route path="/main" element={<MainPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
