@@ -1,0 +1,24 @@
+services:
+  db:
+    image: mysql:8.4
+    command: --skip-log-bin
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?}
+      MYSQL_USER: ${MYSQL_USER:?}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?}
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - ./db/mock:/mock:ro
+    healthcheck:
+      # TCP on purpose: the temporary init server only listens on the socket.
+      # init_done is created by the last init file.
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u\"$$MYSQL_USER\" -e 'SELECT 1 FROM assignment.init_done'"]
+      start_period: 15m
+      start_interval: 5s
+      interval: 30s
+      retries: 3
+
+volumes:
+  db-data:

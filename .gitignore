@@ -1,0 +1,32 @@
+# Allow only project files at the root
+/*
+!/.gitignore
+!/README.md
+!/docker-compose.yml
+!/.env.example
+!/frontend/
+!/backend/
+!/db/
+!/scripts/
+!/docs/
+
+# Mock data (see README)
+/db/mock/*
+!/db/mock/.gitkeep
+
+# Dependencies and build output
+node_modules/
+dist/
+/backend/bin/
+coverage/
+*.out
+
+# Local config
+.env
+
+# OS / editor
+.DS_Store
+__MACOSX/
+.idea/
+.vscode/
+*.swp
