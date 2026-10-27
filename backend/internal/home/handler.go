@@ -27,3 +27,17 @@ func (h Handler) User(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.WriteJSON(w, http.StatusOK, u)
 }
+
+// Accounts: GET /api/accounts -> 200 [account...] ordered by account_id (always an array) | 401 UNAUTHENTICATED
+func (h Handler) Accounts(w http.ResponseWriter, r *http.Request) {
+	rows, err := accountsByUser(r.Context(), h.DB, auth.UserID(r.Context()))
+	if err != nil {
+		httpx.WriteInternal(w, r, err)
+		return
+	}
+	accounts := make([]account, len(rows)) // non-nil: no accounts is [] not null
+	for i, row := range rows {
+		accounts[i] = toAccount(row)
+	}
+	httpx.WriteJSON(w, http.StatusOK, accounts)
+}

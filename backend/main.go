@@ -42,6 +42,7 @@ func main() {
 
 	homeH := home.Handler{DB: db}
 	mux.HandleFunc("GET /api/user", authH.Require(homeH.User))
+	mux.HandleFunc("GET /api/accounts", authH.Require(homeH.Accounts))
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
