@@ -17,6 +17,8 @@ import (
 	"backend/internal/httpx"
 )
 
+const dbConns = 32
+
 func main() {
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
@@ -31,6 +33,9 @@ func main() {
 	if err != nil {
 		fatal("open db", err)
 	}
+	// stay under MySQL's max_connections (151); extra queries wait for a free connection
+	db.SetMaxOpenConns(dbConns)
+	db.SetMaxIdleConns(dbConns)
 	if err := db.Ping(); err != nil {
 		fatal("ping db", err)
 	}

@@ -14,7 +14,7 @@ The frontend is React 19 with TypeScript and Redux Toolkit, built with a hand-wr
 | Unit tests (optional) | Done | [Tests](#tests) |
 | Optimized service latency (optional) | Done | [Performance](#performance) |
 | Optimized database schema (optional) | Done | [Performance](#performance) |
-| Stress test report, e.g. locust or k6 (optional) | Not done | [Not included](#not-included) |
+| Stress test report, e.g. locust or k6 (optional) | Done | [Stress test](#stress-test) |
 | docker-compose.yml for frontend, backend and database | Done | [Quick start](#quick-start) |
 
 ## Screenshots
@@ -72,7 +72,7 @@ Only port 8080 is published to the host. Go and MySQL are reachable only inside 
 
 ```
 .
-├── docker-compose.yml        db, backend and frontend services
+├── docker-compose.yml        db, backend and frontend services; k6 on demand
 ├── .env.example              database credentials and JWT secret, copied to .env
 ├── backend/                  Go API
 │   ├── main.go               config, DB pool, the 7 routes, HTTP server
@@ -92,11 +92,11 @@ Only port 8080 is published to the host. Go and MySQL are reachable only inside 
 │   ├── webpack.config.js     production build and dev server
 │   ├── nginx.conf            static files, /api/ proxy, fallback to index.html
 │   └── Dockerfile            node:24-alpine build, nginx:1.30-alpine runtime
-├── docs/screenshots/         the three screenshots above
+├── docs/screenshots/         the three screenshots above, stress test graphs
 ├── db/
 │   ├── init/                 runs once on an empty volume, in file-name order
 │   └── mock/                 unzip mock.zip here (not in git)
-└── scripts/                  bench.sh, explain.sql, drop-indexes.sql (see Performance)
+└── scripts/                  bench.sh, explain.sql, drop-indexes.sql (see Performance); k6/ (see Stress test)
 ```
 
 `db/init/` is mounted as `/docker-entrypoint-initdb.d`:
@@ -240,6 +240,52 @@ docker compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USE
 
 The "before" run takes about 3 minutes. Restoring the indexes takes about 20 seconds. `bench.sh` needs bash, curl, sort and awk; on Windows use Git Bash or WSL. It stops with a message when a request does not return 200, for example while Clare is PIN-locked.
 
+## Stress test
+
+`scripts/k6/stress.js` raises the rate step by step until the service breaks, in two scenarios run one after the other:
+
+- **Login**: profile, then PIN, for a random user out of 1,000 (`scripts/k6/users.txt`, the first 1,000 users by primary key). All mock users share the same PIN, so nobody gets locked.
+- **Main page**: the 5 main page endpoints at once, like the browser, with one of 1,000 sessions made at the start.
+
+Each step holds its rate for 30 seconds. A step passes when p95 < 500 ms, errors < 1%, and at least 95% of the target rate completed (when the service is full, k6 drops what it cannot start). Rates are logins or main page loads per second: one login is 2 requests, one main page load is 5.
+
+The first run found two bottlenecks, fixed one at a time:
+
+1. Go's connection pool had no limit. Under load it opened more connections than MySQL allows (`max_connections` 151), and requests failed with `Too many connections`. It is now capped at 32 (`backend/main.go`). In 15-second runs straight to Go, caps of 16, 32 and 64 all passed 1,500 main page loads/s with no errors. 32 is the middle one and leaves room under 151 for the healthcheck and an admin.
+2. nginx opened a new connection to Go for every request. A closed connection keeps its local port for 60 seconds (TIME_WAIT), so above about 470 new connections per second the ports ran out and nginx returned 502. `frontend/nginx.conf` now sends `/api/` through a named `upstream` block, which keeps connections to Go open (keepalive is on by default there since nginx 1.29.7).
+
+| Main page | Before | Pool capped | Pool capped + keepalive |
+|---|---|---|---|
+| Highest passing step | 100/s (496 req/s) | 100/s (496 req/s) | 2,400/s (11,923 req/s) |
+| p95 at that step (0% errors) | 5.8 ms | 4.8 ms | 8.0 ms |
+| Next step | 200/s: 56.7% errors | 200/s: 56.1% errors | 3,200/s: only 2,406/s completed, p95 243 ms, 0.83% errors |
+| What broke | MySQL connections (8,152 `Too many connections`) and nginx ports (93,918 errors) | nginx ports (147,470 errors) | 3,200/s held for about 17 seconds, then requests piled up and the rate fell to about 1,000/s; at 3,200/s and 4,000/s nginx ran out of ports again (30,336 errors) |
+
+| Login | Before | Pool capped | Pool capped + keepalive |
+|---|---|---|---|
+| Highest passing step | 100/s | 100/s | 100/s |
+| p95 at that step (0% errors) | 430 ms | 396 ms | 478 ms |
+| Next step | 120/s: 108/s completed, p95 2,388 ms, 5.3% errors | 120/s: 104/s completed, p95 2,692 ms, no errors | 120/s: 105/s completed, p95 2,610 ms, no errors |
+| What broke | CPU (bcrypt) | CPU (bcrypt) | CPU (bcrypt) |
+
+Login is bound by bcrypt, about 65 ms of CPU per PIN check, so neither fix changes the highest passing step. At 100/s p95 is already close to the limit. At 120/s only the version without the pool cap also returned errors.
+
+Graphs from the k6 report, before and after both fixes. The first part of each graph is login, the rest is the main page:
+
+![k6 report, Before](docs/screenshots/stress-before.png)
+
+![k6 report, Pool capped + keepalive](docs/screenshots/stress-after.png)
+
+Measured on the same machine as Performance, with k6 2.2.0. Docker Desktop was restarted before each run, other apps were closed, and each run came after a 15-second warm-up at 50 main page loads/s. Memory matters: in an earlier run that started with 48% of memory free instead of 73–75%, the fixed version broke at 200 main page loads/s. k6 runs in the same Docker VM and takes CPU from the service too, so the rates depend on the machine. What carries over is what breaks first, and in what order.
+
+To run it (the stack must be up):
+
+```sh
+docker compose run --rm k6
+```
+
+It takes about 8 minutes. The table per step prints at the end and is saved in `scripts/k6/results/summary.txt`. `scripts/k6/results/report.html` has the graphs. The other two columns come from the same script with changes removed, then `docker compose up -d --build`. "Pool capped" has `proxy_pass http://backend:8080;` and no `upstream` block in `frontend/nginx.conf`. "Before" also has no `SetMaxOpenConns`/`SetMaxIdleConns` in `backend/main.go`.
+
 ## Tests
 
 ```sh
@@ -339,7 +385,8 @@ Decisions the assignment left open, grouped by area.
 | nginx serves the build and proxies `/api/` to Go | One origin: no CORS, and no API URL baked into the build. The dev server proxy does the same. |
 | nginx compresses JS, CSS and JSON. The content-hashed bundle is cached for a year; `index.html` is always revalidated | The bundle is about 380 KB uncompressed. A new build gets a new file name, so a long cache never serves old code. |
 | Required environment: `DB_*`, `JWT_SECRET`. Defaults in Go: `PORT` 8080, `COOKIE_SECURE` false, `SESSION_TTL_SECONDS` 900, `PIN_MAX_ATTEMPTS` 4, `PIN_LOCK_SECONDS` 60 | A missing required value stops the server with the variable's name. A bad optional value falls back to its default. The DSN is built in code with `parseTime` and UTC, so those cannot be mistyped. |
-| Default connection pool. Fixed server timeouts: 5 s read header, 10 s read, 10 s write, 60 s idle. One `log/slog` line per request | The latency gain comes from the indexes, not pool tuning. |
+| Connection pool capped at 32 connections (open and idle). Fixed server timeouts: 5 s read header, 10 s read, 10 s write, 60 s idle. One `log/slog` line per request | Go's default pool has no limit. Under the stress test it opened more connections than MySQL allows (151) and requests failed with 500. Above the cap a query waits for a free connection. 16, 32 and 64 performed the same; see Stress test. |
+| nginx sends `/api/` through a named `upstream` block, which keeps up to 32 idle connections to Go open in each worker (the default since nginx 1.29.7) | Without it every request opened a new connection. Under the stress test the closed ones (TIME_WAIT) used up the local ports and nginx answered 502. |
 | No graceful shutdown | Not asked for. The PIN transaction rolls back if the server stops mid-request. |
 | MySQL 8.4 with `--skip-log-bin` | The binary log would write about 3 GB more during the import. |
 | The backend connects as `MYSQL_USER`, which only has rights on `assignment` | Root is for administration only. Each service gets only the variables it uses. A required variable missing from `.env` makes `docker compose` stop and name it. |
@@ -352,7 +399,6 @@ Decisions the assignment left open, grouped by area.
 
 | Item | Reason |
 |---|---|
-| Stress test (k6) | Optional, not done. Latency is measured one request at a time instead (see Performance). |
 | Refresh token and logout | The session lasts 15 minutes, then the PIN is asked again. The design has no logout control. |
 | Increasing PIN lock time | The lock is 60 seconds every time so a reviewer can test it. A real system should lengthen it after each lock. |
 | Per-user salt | Every user shares one bcrypt hash of the same PIN. Generating 1 million hashes takes about 18 hours. A real system has each user's own PIN and salt. |

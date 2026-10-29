@@ -43,5 +43,20 @@ services:
     ports: ["8080:80"]
     depends_on: [backend]
 
+  # Stress test (see README)
+  k6:
+    image: grafana/k6:2.2.0
+    profiles: ["k6"]
+    # root so the results can be written to the bind mount on Linux too
+    user: root
+    working_dir: /k6
+    volumes:
+      - ./scripts/k6:/k6
+    environment:
+      K6_WEB_DASHBOARD: "true"
+      K6_WEB_DASHBOARD_EXPORT: results/report.html
+    command: run stress.js
+    depends_on: [frontend]
+
 volumes:
   db-data:

@@ -22,6 +22,10 @@ dist/
 coverage/
 *.out
 
+# Stress test output (see README)
+/scripts/k6/results/*
+!/scripts/k6/results/.gitkeep
+
 # Local config
 .env
 
